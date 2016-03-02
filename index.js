@@ -46,7 +46,7 @@ function encrypt(userPublicKey, payload) {
   };
 }
 
-function sendNotification(endpoint, TTL, userPublicKey, payload) {
+function sendNotification(endpoint, TTL, userPublicKey, payload, authorization, cryptoKey) {
   return new Promise(function(resolve, reject) {
     var urlParts = url.parse(endpoint);
     var options = {
@@ -70,6 +70,14 @@ function sendNotification(endpoint, TTL, userPublicKey, payload) {
         'Content-Encoding': 'aesgcm128',
       };
     }
+
+    if (typeof authorization !== 'undefined' && typeof cryptoKey !== 'undefined') {
+      vapidHeaders = {
+        options.headers['Authorization'] = authorization,
+        options.headers['Crypto-Key'] : cryptoKey
+      };
+    }
+
 
     var gcmPayload;
     if (endpoint.indexOf('https://android.googleapis.com/gcm/send') === 0) {
