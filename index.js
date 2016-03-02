@@ -46,7 +46,7 @@ function encrypt(userPublicKey, payload) {
   };
 }
 
-function sendNotification(endpoint, TTL, userPublicKey, payload) {
+function sendNotification(endpoint, TTL, userPublicKey, payload, authorization, cryptoKey) {
   return new Promise(function(resolve, reject) {
     var urlParts = url.parse(endpoint);
     var options = {
@@ -85,13 +85,19 @@ function sendNotification(endpoint, TTL, userPublicKey, payload) {
       var endpointSections = endpoint.split('/');
       var subscriptionId = endpointSections[endpointSections.length - 1];
       gcmPayload = JSON.stringify({
-        registration_ids: [ subscriptionId ],
+        registration_ids: [subscriptionId],
       });
       options.path = options.path.substring(0, options.path.length - subscriptionId.length - 1);
 
       options.headers['Authorization'] = 'key=' + gcmAPIKey;
       options.headers['Content-Type'] = 'application/json';
       options.headers['Content-Length'] = gcmPayload.length;
+    } else {
+      // Non GCM case
+      if (typeof authorization !== 'undefined' && typeof cryptoKey !== 'undefined') {
+        options.headers['Authorization'] = authorization,
+        options.headers['Crypto-Key'] =  cryptoKey
+      }
     }
 
     if (typeof TTL !== 'undefined') {
