@@ -4,6 +4,7 @@ const ece       = require('http_ece');
 const url       = require('url');
 const https     = require('https');
 const colors    = require('colors');
+const jws       = require('jws'); 
 
 function WebPushError(message, statusCode, headers) {
   Error.captureStackTrace(this, this.constructor);
@@ -46,7 +47,7 @@ function encrypt(userPublicKey, payload) {
   };
 }
 
-function sendNotification(endpoint, TTL, userPublicKey, payload) {
+function sendNotification(endpoint, TTL, userPublicKey, payload, vapid) {
   return new Promise(function(resolve, reject) {
     var urlParts = url.parse(endpoint);
     var options = {
@@ -60,6 +61,36 @@ function sendNotification(endpoint, TTL, userPublicKey, payload) {
     };
 
     var encrypted;
+    if (typeof payload !== 'undefined') {
+      encrypted = encrypt(urlBase64.decode(userPublicKey), new Buffer(payload));
+      options.headers = {
+        'Content-Length': encrypted.cipherText.length,
+        'Content-Type': 'application/octet-stream',
+        'Encryption-Key': 'keyid=p256dh;dh=' + urlBase64.encode(encrypted.localPublicKey),
+        'Encryption': 'keyid=p256dh;salt=' + urlBase64.encode(encrypted.salt),
+        'Content-Encoding': 'aesgcm128',
+      };
+      if (vapid) {
+        var header = { typ: "JWT", alg: "ES256" };
+        var now = Math.floor(Date.now() / 1000);
+        var payload = { aud: vapid.audience, exp: now + 86400, sub: vapid.subject};
+        var appKeys = crypto.createECDH('prime256v1');
+        appKeys.generateKeys();
+        var signature = jws.sign({
+          header: header,
+          payload: payload,
+          privateKey: appKeys.getPrivateKey()
+        });
+        auth = "Bearer " +
+          urlBase64.encode(JSON.stringify(header)) + "." +
+          urlBase64.encode(JSON.stringify(payload)) + "." +
+          JSON.stringify(signature);
+        options['Authorization'] = auth;
+        options['Crypto-Key'] = "p256ecdsa=" + urlBase64.encode(appKeys.getPublicKey())
+      }
+    }
+
+
     if (typeof payload !== 'undefined') {
       encrypted = encrypt(urlBase64.decode(userPublicKey), new Buffer(payload));
       options.headers = {
